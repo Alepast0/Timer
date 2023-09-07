@@ -15,32 +15,15 @@ class TimerBloc extends Bloc<TimerEvent, TimerState> {
   TimerBloc({required int waitTimeInSec})
       : _waitTimeInSec = waitTimeInSec,
         _currentWaitTimeInSec = waitTimeInSec,
-        super(InitTimerState(_calculationTime(waitTimeInSec), 1));
-
-  @override
-  Future<void> close() {
-    _timer?.cancel();
-    return super.close();
+        super(InitTimerState(_calculationTime(waitTimeInSec), 1)) {
+    on<TimerStartEvent>(_timerStarted);
+    on<TimerPauseEvent>(_timerPaused);
+    on<TimerResetEvent>(_timerReset);
+    on<TimerTicked>(_ticked);
+    on<TimerStopEvent>(_timerStop);
   }
 
-  @override
-  Stream<TimerState> mapEventToState(
-      TimerEvent event,
-      ) async* {
-    if (event is TimerStartEvent) {
-      yield* _mapTimerStartedToState(event);
-    } else if (event is TimerPauseEvent) {
-      yield* _mapTimerPausedToState(event);
-    } else if (event is TimerResetEvent) {
-      yield* _mapTimerResetToState(event);
-    } else if (event is TimerTicked) {
-      yield* _mapTimerTickedToState(event);
-    } else if (event is TimerStopEvent) {
-      yield* _mapTimerStopToState(event);
-    }
-  }
-
-  Stream<TimerState> _mapTimerStartedToState(TimerStartEvent start) async* {
+  void _timerStarted(TimerStartEvent event, Emitter<TimerState> emit) {
     if (_currentWaitTimeInSec > 0) {
       _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
         _currentWaitTimeInSec -= 1;
@@ -52,32 +35,31 @@ class TimerBloc extends Bloc<TimerEvent, TimerState> {
           add(const TimerStopEvent());
         }
       });
-
     }
   }
 
-  Stream<TimerState> _mapTimerPausedToState(TimerPauseEvent pause) async* {
+  void _timerPaused(TimerPauseEvent event, Emitter<TimerState> emit) {
     if (state is RunTimerState) {
       _timer?.cancel();
-      yield PauseTimerState(_calculationTime(_currentWaitTimeInSec),
-          _currentWaitTimeInSec / _waitTimeInSec);
+      emit(PauseTimerState(
+          _calculationTime(_currentWaitTimeInSec), _currentWaitTimeInSec / _waitTimeInSec));
     }
   }
 
-  Stream<TimerState> _mapTimerResetToState(TimerResetEvent reset) async* {
+  void _timerReset(TimerResetEvent event, Emitter<TimerState> emit) {
     _currentWaitTimeInSec = _waitTimeInSec;
-    yield ResetTimerState(_calculationTime(_currentWaitTimeInSec),
-        _currentWaitTimeInSec / _waitTimeInSec, state.isRun);
+    emit(ResetTimerState(_calculationTime(_currentWaitTimeInSec),
+        _currentWaitTimeInSec / _waitTimeInSec, state is RunTimerState));
   }
 
-  Stream<TimerState> _mapTimerStopToState(TimerStopEvent stop) async* {
+  void _timerStop(TimerStopEvent event, Emitter<TimerState> emit) {
     if (state is RunTimerState) {
-      yield const CompleteTimerState();
+      emit(const CompleteTimerState());
     }
   }
 
-  Stream<TimerState> _mapTimerTickedToState(TimerTicked tick) async* {
-    yield RunTimerState(tick.time, tick.percent);
+  void _ticked(TimerTicked event, Emitter<TimerState> emit) {
+    emit(RunTimerState(event.time, event.percent));
   }
 
   static String _calculationTime(int currentWaitTimeInSec) {
